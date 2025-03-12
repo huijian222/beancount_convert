@@ -3,7 +3,7 @@ import json
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash, jsonify
 from werkzeug.utils import secure_filename
 import tempfile
-
+from converter import BillMapping  # Add this import to fix the error
 from converter.alipay import AlipayConverter
 from converter.alipay_mapping import AlipayMapping
 from converter.wechat import WeChatConverter

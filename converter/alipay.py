@@ -279,18 +279,9 @@ class AlipayConverter:
         if hasattr(self.mapping, 'custom_expense_categories') and self.mapping.custom_expense_categories:
             print(f"当前自定义支出映射: {self.mapping.custom_expense_categories}")
             
-            # 按照优先级顺序检查字段: 交易对方 > 商品说明 > 备注 > 交易分类
+            # 按照优先级顺序检查字段: 商品说明 > 交易对方 > 备注 > 交易分类
             
-            # 1. 首先检查交易对方
-            if counterparty:
-                print(f"检查交易对方: {counterparty}")
-                for key, account in self.mapping.custom_expense_categories.items():
-                    if key in counterparty:
-                        print(f"✓ 交易对方匹配: '{key}' 在 '{counterparty}' 中")
-                        return account
-                print("✗ 交易对方无匹配")
-            
-            # 2. 然后检查商品说明
+            # 1. 首先检查商品说明
             if description:
                 print(f"检查商品说明: {description}")
                 for key, account in self.mapping.custom_expense_categories.items():
@@ -298,6 +289,15 @@ class AlipayConverter:
                         print(f"✓ 商品说明匹配: '{key}' 在 '{description}' 中")
                         return account
                 print("✗ 商品说明无匹配")
+            
+            # 2. 然后检查交易对方
+            if counterparty:
+                print(f"检查交易对方: {counterparty}")
+                for key, account in self.mapping.custom_expense_categories.items():
+                    if key in counterparty:
+                        print(f"✓ 交易对方匹配: '{key}' 在 '{counterparty}' 中")
+                        return account
+                print("✗ 交易对方无匹配")
             
             # 3. 再检查备注
             if remarks:
@@ -369,18 +369,18 @@ class AlipayConverter:
         
         # 检查自定义映射（如果有）
         if hasattr(self.mapping, 'custom_income_categories') and self.mapping.custom_income_categories:
-            # 按照优先级顺序检查字段: 交易对方 > 商品说明 > 备注 > 交易分类
+            # 按照优先级顺序检查字段: 商品说明 > 交易对方 > 备注 > 交易分类
             
-            # 1. 首先检查交易对方
-            if counterparty:
-                for key, account in self.mapping.custom_income_categories.items():
-                    if key in counterparty:
-                        return account
-            
-            # 2. 然后检查商品说明
+            # 1. 首先检查商品说明
             if description:
                 for key, account in self.mapping.custom_income_categories.items():
                     if key in description:
+                        return account
+            
+            # 2. 然后检查交易对方
+            if counterparty:
+                for key, account in self.mapping.custom_income_categories.items():
+                    if key in counterparty:
                         return account
             
             # 3. 再检查备注
