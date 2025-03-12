@@ -150,21 +150,22 @@ class WeChatConverter:
                 print("警告: 没有找到任何交易数据")
                 return "# 没有发现有效的交易数据"
             
-            # 跳过标记为不计收支的交易 (微信中是"/")
-            if 'type' in df.columns:
-                df = df[df['type'] != '/']
+            # # 跳过标记为不计收支的交易 (微信中是"/")
+            # if '支付方式' in df.columns:
+            #     df = df[df['type'] != '/']
             
             # 跳过交易状态为"已全额退款"、"对方已退还"、"已退款"的交易
-            if 'status' in df.columns:
+            print(df.columns)
+            if '当前状态' in df.columns:
                 print(f"过滤前交易数: {len(df)}")
-                ignore_statuses = ["已全额退款", "对方已退还", "已退款"]
-                df = df[~df['status'].isin(ignore_statuses)]
+                # 合并所有需要过滤的状态
+                ignore_statuses = ["已全额退款"]
+                if hasattr(self.mapping, 'ignore_statuses'):
+                    for status in self.mapping.ignore_statuses:
+                        if status not in ignore_statuses:
+                            ignore_statuses.append(status)
+                df = df[~df['当前状态'].isin(ignore_statuses)]
                 print(f"过滤后交易数: {len(df)}")
-            
-            # 也根据 WeChatMapping 的 ignore_statuses 过滤
-            if hasattr(self.mapping, 'ignore_statuses') and 'status' in df.columns:
-                df = df[~df['status'].isin(self.mapping.ignore_statuses)]
-                print(f"根据映射过滤后交易数: {len(df)}")
             
             # 跳过transaction_type为'transfer'的交易
             if 'transaction_type' in df.columns:
