@@ -152,21 +152,31 @@ def index():
 @app.route('/mappings')
 def view_mappings():
     """查看映射配置页面"""
-    # 加载支付宝映射
-    alipay_mapping = AlipayMapping()
-    alipay_mappings = alipay_mapping.get_all_mappings()
+    # 由于现在支付宝和微信共用映射，只需要加载一个映射实例
+    # 我们选择使用AlipayMapping作为基础类
+    mapping = AlipayMapping()
     
-    # 加载微信映射
+    # 获取默认映射和共享的自定义映射
+    mappings = mapping.get_all_mappings()
+    
+    # 添加微信特有的默认映射
     wechat_mapping = WeChatMapping()
-    wechat_mappings = wechat_mapping.get_all_mappings()
+    wechat_defaults = {
+        'expense_categories': wechat_mapping.expense_categories,
+        'income_categories': wechat_mapping.income_categories,
+        'asset_accounts': wechat_mapping.asset_accounts,
+        'liability_accounts': wechat_mapping.liability_accounts
+    }
     
-    return render_template('mappings.html', 
-                          alipay_mappings=alipay_mappings,
-                          wechat_mappings=wechat_mappings)
+    # 合并支付宝和微信的默认映射
+    for category in ['expense_categories', 'income_categories', 'asset_accounts', 'liability_accounts']:
+        mappings[category]['wechat_default'] = wechat_defaults[category]
+    
+    return render_template('mappings.html', mappings=mappings)
 
-@app.route('/mappings/update/<bill_type>/<mapping_type>', methods=['POST'])
-def update_mappings(bill_type, mapping_type):
-    """更新自定义映射"""
+@app.route('/mappings/update/<mapping_type>', methods=['POST'])
+def update_mappings(mapping_type):
+    """更新自定义映射（支付宝和微信共用）"""
     if mapping_type not in ['expense', 'income', 'asset', 'liability']:
         flash('无效的映射类型')
         return redirect(url_for('view_mappings'))
@@ -187,14 +197,8 @@ def update_mappings(bill_type, mapping_type):
                 if map_key and map_value:
                     mappings[map_key] = map_value
         
-        # 根据账单类型选择映射类
-        if bill_type == 'wechat':
-            mapping = WeChatMapping()
-        else:
-            mapping = AlipayMapping()
-            
-        # 保存映射
-        success = mapping.update_custom_mappings(mapping_type, mappings)
+        # 使用BillMapping类方法更新映射（由于是类方法，对所有子类实例都有效）
+        success = BillMapping.update_custom_mappings(mapping_type, mappings)
         
         if success:
             flash(f'映射已更新')
@@ -205,33 +209,27 @@ def update_mappings(bill_type, mapping_type):
     
     return redirect(url_for('view_mappings'))
 
-@app.route('/mappings/export/<bill_type>')
-def export_mappings(bill_type):
+@app.route('/mappings/export')
+def export_mappings():
     """导出映射配置为JSON文件"""
-    # 根据账单类型选择映射类
-    if bill_type == 'wechat':
-        mapping = WeChatMapping()
-        filename = 'wechat_custom_mappings.json'
-    else:
-        mapping = AlipayMapping()
-        filename = 'alipay_custom_mappings.json'
+    # 由于现在映射是共享的，不需要指定账单类型
+    filename = 'shared_custom_mappings.json'
     
-    mappings = {
-        'expense_categories': mapping.custom_expense_categories,
-        'income_categories': mapping.custom_income_categories,
-        'asset_accounts': mapping.custom_asset_accounts,
-        'liability_accounts': mapping.custom_liability_accounts
-    }
+    # 直接访问映射文件
+    export_file = BillMapping.MAPPING_FILE_PATH
+    # 如果文件不存在，先创建一个空映射
+    if not os.path.exists(export_file):
+        BillMapping.save_custom_mappings()
     
-    # 创建临时文件
-    export_file = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    with open(export_file, 'w', encoding='utf-8') as f:
-        json.dump(mappings, f, ensure_ascii=False, indent=2)
+    # 创建临时拷贝
+    temp_file = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    import shutil
+    shutil.copy2(export_file, temp_file)
         
-    return send_file(export_file, as_attachment=True, download_name=filename)
+    return send_file(temp_file, as_attachment=True, download_name=filename)
 
-@app.route('/mappings/import/<bill_type>', methods=['POST'])
-def import_mappings(bill_type):
+@app.route('/mappings/import', methods=['POST'])
+def import_mappings():
     """导入映射配置"""
     if 'mapping_file' not in request.files:
         flash('没有选择文件')
@@ -256,22 +254,16 @@ def import_mappings(bill_type):
                 return redirect(url_for('view_mappings'))
             
             # 保存为临时文件
-            import_file = os.path.join(app.config['UPLOAD_FOLDER'], f'{bill_type}_imported_mappings.json')
+            import_file = os.path.join(app.config['UPLOAD_FOLDER'], 'imported_mappings.json')
             with open(import_file, 'w', encoding='utf-8') as f:
                 json.dump(mappings, f, ensure_ascii=False, indent=2)
             
-            # 根据账单类型选择映射类
-            if bill_type == 'wechat':
-                mapping = WeChatMapping()
-            else:
-                mapping = AlipayMapping()
-                
-            # 使用映射类加载文件
-            success = mapping.load_custom_mappings(import_file)
+            # 使用BillMapping类方法加载文件（由于是类方法，对所有子类实例都有效）
+            success = BillMapping.load_custom_mappings(import_file)
             
             if success:
                 # 保存到默认位置
-                mapping.save_custom_mappings()
+                BillMapping.save_custom_mappings()
                 flash('映射导入成功')
             else:
                 flash('导入映射失败')
@@ -282,6 +274,5 @@ def import_mappings(bill_type):
         flash('请选择有效的JSON文件')
         
     return redirect(url_for('view_mappings'))
-
 if __name__ == '__main__':
     app.run(debug=True)

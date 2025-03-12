@@ -1,12 +1,26 @@
 import pandas as pd
 import re
 from datetime import datetime
+import json
+import os
 
 class BillMapping:
     """
     通用账单映射类
     负责识别不同账单格式并标准化处理数据
     """
+    
+    # 统一映射文件路径 - 类变量，所有子类共享
+    MAPPING_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'shared_mappings.json')
+    
+    # 统一自定义映射 - 类变量，所有子类共享
+    custom_expense_categories = {}
+    custom_income_categories = {}
+    custom_asset_accounts = {}
+    custom_liability_accounts = {}
+    
+    # 是否已加载映射
+    _mappings_loaded = False
     
     def __init__(self):
         # 基本列映射关系
@@ -25,6 +39,10 @@ class BillMapping:
         ]
         # 忽略的交易状态
         self.ignore_statuses = []
+        
+        # 加载自定义映射（如果尚未加载）
+        if not BillMapping._mappings_loaded:
+            self.load_custom_mappings()
         
     def detect_file_encoding(self, filepath):
         """尝试检测文件编码"""
@@ -141,3 +159,90 @@ class BillMapping:
             return df
         except Exception as e:
             raise ValueError(f"无法读取文件: {str(e)}")
+    
+    @classmethod
+    def load_custom_mappings(cls, filepath=None):
+        """从JSON文件加载自定义映射 - 类方法，所有实例共享结果"""
+        if filepath is None:
+            filepath = cls.MAPPING_FILE_PATH
+        
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    mappings = json.load(f)
+                    
+                    if 'expense_categories' in mappings:
+                        cls.custom_expense_categories = mappings['expense_categories']
+                    if 'income_categories' in mappings:
+                        cls.custom_income_categories = mappings['income_categories']
+                    if 'asset_accounts' in mappings:
+                        cls.custom_asset_accounts = mappings['asset_accounts']
+                    if 'liability_accounts' in mappings:
+                        cls.custom_liability_accounts = mappings['liability_accounts']
+                        
+                print(f"已加载共享自定义映射: {filepath}")
+                cls._mappings_loaded = True
+                return True
+            except Exception as e:
+                print(f"加载自定义映射失败: {str(e)}")
+                return False
+        return False
+    
+    @classmethod
+    def save_custom_mappings(cls, filepath=None):
+        """保存自定义映射到JSON文件 - 类方法，所有实例共享"""
+        if filepath is None:
+            filepath = cls.MAPPING_FILE_PATH
+        
+        try:
+            mappings = {
+                'expense_categories': cls.custom_expense_categories,
+                'income_categories': cls.custom_income_categories,
+                'asset_accounts': cls.custom_asset_accounts,
+                'liability_accounts': cls.custom_liability_accounts
+            }
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(mappings, f, ensure_ascii=False, indent=2)
+                
+            print(f"已保存共享自定义映射: {filepath}")
+            return True
+        except Exception as e:
+            print(f"保存自定义映射失败: {str(e)}")
+            return False
+    
+    @classmethod
+    def get_all_mappings(cls):
+        """获取所有映射（默认和自定义）- 类方法，所有实例共享结果"""
+        # 注意：各个子类需要提供自己的默认映射
+        return {
+            'expense_categories': {
+                'default': {},  # 子类需要提供
+                'custom': cls.custom_expense_categories
+            },
+            'income_categories': {
+                'default': {},  # 子类需要提供
+                'custom': cls.custom_income_categories
+            },
+            'asset_accounts': {
+                'default': {},  # 子类需要提供
+                'custom': cls.custom_asset_accounts
+            },
+            'liability_accounts': {
+                'default': {},  # 子类需要提供
+                'custom': cls.custom_liability_accounts
+            }
+        }
+    
+    @classmethod
+    def update_custom_mappings(cls, mapping_type, mappings):
+        """更新自定义映射 - 类方法，所有实例共享结果"""
+        if mapping_type == 'expense':
+            cls.custom_expense_categories = mappings
+        elif mapping_type == 'income':
+            cls.custom_income_categories = mappings
+        elif mapping_type == 'asset':
+            cls.custom_asset_accounts = mappings
+        elif mapping_type == 'liability':
+            cls.custom_liability_accounts = mappings
+        return cls.save_custom_mappings()

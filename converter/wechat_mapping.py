@@ -172,6 +172,30 @@ class WeChatMapping(BillMapping):
             if std_col:
                 column_map[col] = std_col
         
+        # 对于未匹配的标准列，进行内容分析
+        # 尤其关注金额列，它经常有不同的命名
+        if 'amount' not in column_map.values():
+            print("金额列未通过直接名称匹配，尝试内容分析...")
+            sample_data = df.head(5)
+            
+            for col in df.columns:
+                # 跳过已匹配的列
+                if col in column_map:
+                    continue
+                    
+                # 获取列的样本值
+                values = sample_data[col].astype(str).str.strip().tolist()
+                print(f"分析列 '{col}' 的值: {values}")
+                
+                # 检查是否是金额列 - 查找带有货币符号(¥)或数字+小数点的模式
+                currency_pattern = any('¥' in val or '￥' in val for val in values)
+                number_pattern = any(self._is_possible_amount(val) for val in values)
+                
+                if currency_pattern or number_pattern:
+                    print(f"列 '{col}' 可能是金额列，包含货币符号或数字模式")
+                    column_map[col] = 'amount'
+                    break
+        
         # 反转映射关系，以标准列名为键
         std_to_col = {}
         for col, std in column_map.items():
@@ -217,57 +241,80 @@ class WeChatMapping(BillMapping):
     
     def determine_transaction_type(self, row):
         """确定交易类型"""
+        print("\n分析交易类型...")
+        
+        # 检查type列
         if 'type' in row and row['type'] is not None:
             type_value = str(row['type']).strip()
+            print(f"收/支标记: '{type_value}'")
             
             if type_value == '收入':
+                print("✓ 根据收/支标记判断为收入交易")
                 return 'income'
             elif type_value == '支出':
+                print("✓ 根据收/支标记判断为支出交易")
                 return 'expense'
             elif type_value == '/':  # 微信的不计收支是'/'
+                print("✓ 根据收/支标记判断为转账交易")
                 return 'transfer'
                 
         # 通过其他线索判断类型
         if 'transaction_category' in row and row['transaction_category'] is not None:
             category = str(row['transaction_category']).strip()
+            print(f"交易分类: '{category}'")
             
             if '退款' in category:
+                print("✓ 根据交易分类判断为收入交易(退款)")
                 return 'income'
-            elif '转账' in category or '收款' in category:
+            elif '红包' in category and not '发红包' in category:
+                print("✓ 根据交易分类判断为收入交易(红包)")
+                return 'income'
+            elif '转账' in category or '收款' in category or '提现' in category:
+                print("✓ 根据交易分类判断为转账交易")
                 return 'transfer'
+                
+        # 检查交易对方
+        if 'counterparty' in row and not pd.isna(row['counterparty']):
+            counterparty = str(row['counterparty']).strip()
+            print(f"交易对方: '{counterparty}'")
+            
+            # 微信红包通常来自于特定对方
+            if '微信红包' in counterparty or '微信安全支付' in counterparty:
+                print("✓ 根据交易对方判断为收入交易(红包)")
+                return 'income'
                 
         # 通过金额判断
         if 'actual_amount' in row and row['actual_amount'] is not None:
             amount = float(row['actual_amount'])
+            print(f"实际金额: {amount}")
+            
             if amount > 0:
+                print("✓ 根据金额判断为支出交易")
                 return 'expense'
             elif amount < 0:
+                print("✓ 根据金额判断为收入交易")
                 return 'income'
                 
+        print("⚠ 无法确定交易类型，默认为'unknown'")
         return 'unknown'
     
-    def extract_amount(self, value):
-        """提取金额数值，特别处理微信余额格式"""
-        if pd.isna(value):
-            return 0.0
-            
-        if isinstance(value, (int, float)):
-            return float(value)
-            
-        # 转换为字符串并清理
-        value_str = str(value).strip()
+    def _is_possible_amount(self, value):
+        """判断值是否可能为金额"""
+        if not value or value == 'nan' or value.strip() == '':
+            return False
         
-        # 移除货币符号(¥)和千位分隔符
-        value_str = re.sub(r'[¥,$,￥,\s,]', '', value_str)
+        # 移除货币符号和空格
+        clean_value = re.sub(r'[¥,$,￥,\s,]', '', str(value))
         
-        # 提取数字部分
-        matches = re.search(r'([-+]?\d+\.?\d*)', value_str)
-        if matches:
-            result = float(matches.group(1))
-            print(f"从 '{value}' 提取金额: {result}")
-            return result
+        # 检查是否主要由数字和可能的小数点组成
+        if re.match(r'^[-+]?\d+\.?\d*$', clean_value):
+            return True
             
-        return 0.0
+        # 也检查包含数字和货币符号的模式
+        if re.search(r'[¥￥]\s*\d+', value) or re.search(r'\d+\s*[¥￥]', value):
+            return True
+            
+        return False
     
     def load_custom_mappings(self, filepath=None):
         """从JSON文件加载自定义映射"""

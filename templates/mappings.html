@@ -3,14 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>账单转Beancount</title>
+    <title>自定义映射配置 - 账单转Beancount</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .mapping-section {
+            margin-bottom: 30px;
+        }
+        .mapping-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        .mapping-table th, .mapping-table td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        .mapping-table th {
+            background-color: #f8f9fa;
+        }
+        .mapping-pair {
+            display: flex;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+        .mapping-pair input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+        }
+        .tab-container {
+            margin-top: 20px;
+        }
+        .tab-nav {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .tab-button {
+            padding: 10px 15px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            color: #6c757d;
+        }
+        .tab-button.active {
+            color: #0056b3;
+            border-bottom: 2px solid #0056b3;
+        }
+        .tab-content {
+            display: none;
+            padding: 15px 0;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .mapping-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        .add-mapping-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        .import-export-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+        .empty-mapping-message {
+            font-style: italic;
+            color: #6c757d;
+            margin: 10px 0;
+        }
+        .default-mappings-container {
+            display: flex;
+            gap: 20px;
+        }
+        .default-mapping-column {
+            flex: 1;
+        }
+        .mapping-source {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 5px;
+        }
+        .alipay-source {
+            background-color: #e8f4ff;
+            color: #0077ff;
+        }
+        .wechat-source {
+            background-color: #e8fff0;
+            color: #07c160;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>账单转Beancount</h1>
-            <p>上传支付宝或微信支付CSV账单文件，转换为Beancount格式</p>
+            <p>自定义映射配置</p>
         </header>
         
         <main>
@@ -26,82 +123,382 @@
             
             <div class="card">
                 <div style="text-align: right; margin-bottom: 15px;">
-                    <a href="{{ url_for('view_mappings') }}" class="btn">自定义映射配置</a>
+                    <a href="{{ url_for('index') }}" class="btn">返回上传页面</a>
                 </div>
                 
-                <h2>上传账单</h2>
-                <form method="post" enctype="multipart/form-data">
-                    <div class="form-group">
-                        <label for="file">选择支付宝或微信支付账单CSV文件:</label>
-                        <input type="file" id="file" name="file" accept=".csv" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <p>处理结果:</p>
-                        <div class="radio-group">
-                            <label>
-                                <input type="radio" name="action" value="preview" checked>
-                                预览
-                            </label>
-                            <label>
-                                <input type="radio" name="action" value="download">
-                                下载文件
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">上传并转换</button>
-                    </div>
-                </form>
-            </div>
-            
-            <div class="card">
-                <h2>使用说明</h2>
+                <h2>自定义映射配置</h2>
+                <p>配置支付宝和微信账单共用的映射关系</p>
                 
                 <div class="tab-container">
                     <div class="tab-nav">
-                        <button class="tab-button active" onclick="openTab(event, 'alipay-tab')">支付宝账单</button>
-                        <button class="tab-button" onclick="openTab(event, 'wechat-tab')">微信账单</button>
+                        <button class="tab-button active" onclick="openTab(event, 'expense-tab')">支出分类</button>
+                        <button class="tab-button" onclick="openTab(event, 'income-tab')">收入分类</button>
+                        <button class="tab-button" onclick="openTab(event, 'asset-tab')">资产账户</button>
+                        <button class="tab-button" onclick="openTab(event, 'liability-tab')">负债账户</button>
                     </div>
                     
-                    <div id="alipay-tab" class="tab-content active">
-                        <h3>支付宝账单导出步骤</h3>
-                        <ol>
-                            <li>登录支付宝，进入"我的"-"账单"</li>
-                            <li>选择要导出的时间段，点击右上角的"下载账单"</li>
-                            <li>选择CSV格式下载</li>
-                            <li>上传下载的CSV文件到本页面</li>
-                            <li>点击"上传并转换"按钮</li>
-                        </ol>
-                        <p>注意：以下交易将被跳过不处理：</p>
-                        <ul>
-                            <li>标记为"不计收支"的交易</li>
-                            <li>交易状态为"交易关闭"的交易</li>
-                        </ul>
-                        <p>注意：金额为0的交易将被保留并处理。</p>
+                    <!-- 支出分类 -->
+                    <div id="expense-tab" class="tab-content active">
+                        <h3>支出分类映射</h3>
+                        <p>配置账单中的支出分类映射到Beancount账户</p>
+                        
+                        <!-- 显示默认映射 -->
+                        <div class="mapping-section">
+                            <h4>默认支出分类映射</h4>
+                            <div class="default-mappings-container">
+                                <div class="default-mapping-column">
+                                    <h5><span class="mapping-source alipay-source">支付宝</span> 默认映射</h5>
+                                    <table class="mapping-table">
+                                        <thead>
+                                            <tr>
+                                                <th>关键词</th>
+                                                <th>Beancount账户</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for key, value in mappings.expense_categories.default.items() %}
+                                            <tr>
+                                                <td>{{ key }}</td>
+                                                <td>{{ value }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <div class="default-mapping-column">
+                                    <h5><span class="mapping-source wechat-source">微信</span> 默认映射</h5>
+                                    <table class="mapping-table">
+                                        <thead>
+                                            <tr>
+                                                <th>关键词</th>
+                                                <th>Beancount账户</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for key, value in mappings.expense_categories.wechat_default.items() %}
+                                            <tr>
+                                                <td>{{ key }}</td>
+                                                <td>{{ value }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 自定义映射表单 -->
+                        <div class="mapping-section">
+                            <h4>自定义支出分类映射</h4>
+                            {% if mappings.expense_categories.custom %}
+                            <form action="{{ url_for('update_mappings', mapping_type='expense') }}" method="post">
+                                <div id="expense-mappings">
+                                    {% for key, value in mappings.expense_categories.custom.items() %}
+                                    <div class="mapping-pair">
+                                        <input type="text" name="key_{{ loop.index }}" value="{{ key }}" placeholder="关键词" required>
+                                        <input type="text" name="value_{{ loop.index }}" value="{{ value }}" placeholder="Beancount账户" required>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <button type="button" class="btn add-mapping-btn" onclick="addMapping('expense-mappings')">添加映射</button>
+                                <div class="mapping-actions">
+                                    <button type="submit" class="btn btn-primary">保存映射配置</button>
+                                </div>
+                            </form>
+                            {% else %}
+                            <p class="empty-mapping-message">暂无自定义映射</p>
+                            <form action="{{ url_for('update_mappings', mapping_type='expense') }}" method="post">
+                                <div id="expense-mappings">
+                                    <div class="mapping-pair">
+                                        <input type="text" name="key_1" placeholder="关键词" required>
+                                        <input type="text" name="value_1" placeholder="Beancount账户" required>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn add-mapping-btn" onclick="addMapping('expense-mappings')">添加映射</button>
+                                <div class="mapping-actions">
+                                    <button type="submit" class="btn btn-primary">保存映射配置</button>
+                                </div>
+                            </form>
+                            {% endif %}
+                        </div>
                     </div>
                     
-                    <div id="wechat-tab" class="tab-content">
-                        <h3>微信支付账单导出步骤</h3>
-                        <ol>
-                            <li>打开微信，进入"我"-"支付"</li>
-                            <li>点击右上角"..."，选择"钱包"-"账单"</li>
-                            <li>点击右上角"..."，选择"导出账单"</li>
-                            <li>选择要导出的时间段，点击"导出账单"</li>
-                            <li>选择CSV格式，输入支付密码后下载</li>
-                            <li>上传下载的CSV文件到本页面</li>
-                            <li>点击"上传并转换"按钮</li>
-                        </ol>
-                        <p>注意：以下交易将被跳过不处理：</p>
-                        <ul>
-                            <li>收/支类型为"/"（不计收支）的交易</li>
-                            <li>交易状态为"已全额退款"、"对方已退还"、"已退款"的交易</li>
-                        </ul>
+                    <!-- 收入分类 -->
+                    <div id="income-tab" class="tab-content">
+                        <h3>收入分类映射</h3>
+                        <p>配置账单中的收入分类映射到Beancount账户</p>
+                        
+                        <!-- 显示默认映射 -->
+                        <div class="mapping-section">
+                            <h4>默认收入分类映射</h4>
+                            <div class="default-mappings-container">
+                                <div class="default-mapping-column">
+                                    <h5><span class="mapping-source alipay-source">支付宝</span> 默认映射</h5>
+                                    <table class="mapping-table">
+                                        <thead>
+                                            <tr>
+                                                <th>关键词</th>
+                                                <th>Beancount账户</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for key, value in mappings.income_categories.default.items() %}
+                                            <tr>
+                                                <td>{{ key }}</td>
+                                                <td>{{ value }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <div class="default-mapping-column">
+                                    <h5><span class="mapping-source wechat-source">微信</span> 默认映射</h5>
+                                    <table class="mapping-table">
+                                        <thead>
+                                            <tr>
+                                                <th>关键词</th>
+                                                <th>Beancount账户</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for key, value in mappings.income_categories.wechat_default.items() %}
+                                            <tr>
+                                                <td>{{ key }}</td>
+                                                <td>{{ value }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 自定义映射表单 -->
+                        <div class="mapping-section">
+                            <h4>自定义收入分类映射</h4>
+                            {% if mappings.income_categories.custom %}
+                            <form action="{{ url_for('update_mappings', mapping_type='income') }}" method="post">
+                                <div id="income-mappings">
+                                    {% for key, value in mappings.income_categories.custom.items() %}
+                                    <div class="mapping-pair">
+                                        <input type="text" name="key_{{ loop.index }}" value="{{ key }}" placeholder="关键词" required>
+                                        <input type="text" name="value_{{ loop.index }}" value="{{ value }}" placeholder="Beancount账户" required>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <button type="button" class="btn add-mapping-btn" onclick="addMapping('income-mappings')">添加映射</button>
+                                <div class="mapping-actions">
+                                    <button type="submit" class="btn btn-primary">保存映射配置</button>
+                                </div>
+                            </form>
+                            {% else %}
+                            <p class="empty-mapping-message">暂无自定义映射</p>
+                            <form action="{{ url_for('update_mappings', mapping_type='income') }}" method="post">
+                                <div id="income-mappings">
+                                    <div class="mapping-pair">
+                                        <input type="text" name="key_1" placeholder="关键词" required>
+                                        <input type="text" name="value_1" placeholder="Beancount账户" required>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn add-mapping-btn" onclick="addMapping('income-mappings')">添加映射</button>
+                                <div class="mapping-actions">
+                                    <button type="submit" class="btn btn-primary">保存映射配置</button>
+                                </div>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- 资产账户 -->
+                    <div id="asset-tab" class="tab-content">
+                        <h3>资产账户映射</h3>
+                        <p>配置账单中的支付方式映射到Beancount资产账户</p>
+                        
+                        <!-- 显示默认映射 -->
+                        <div class="mapping-section">
+                            <h4>默认资产账户映射</h4>
+                            <div class="default-mappings-container">
+                                <div class="default-mapping-column">
+                                    <h5><span class="mapping-source alipay-source">支付宝</span> 默认映射</h5>
+                                    <table class="mapping-table">
+                                        <thead>
+                                            <tr>
+                                                <th>关键词</th>
+                                                <th>Beancount账户</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for key, value in mappings.asset_accounts.default.items() %}
+                                            <tr>
+                                                <td>{{ key }}</td>
+                                                <td>{{ value }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <div class="default-mapping-column">
+                                    <h5><span class="mapping-source wechat-source">微信</span> 默认映射</h5>
+                                    <table class="mapping-table">
+                                        <thead>
+                                            <tr>
+                                                <th>关键词</th>
+                                                <th>Beancount账户</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for key, value in mappings.asset_accounts.wechat_default.items() %}
+                                            <tr>
+                                                <td>{{ key }}</td>
+                                                <td>{{ value }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 自定义映射表单 -->
+                        <div class="mapping-section">
+                            <h4>自定义资产账户映射</h4>
+                            {% if mappings.asset_accounts.custom %}
+                            <form action="{{ url_for('update_mappings', mapping_type='asset') }}" method="post">
+                                <div id="asset-mappings">
+                                    {% for key, value in mappings.asset_accounts.custom.items() %}
+                                    <div class="mapping-pair">
+                                        <input type="text" name="key_{{ loop.index }}" value="{{ key }}" placeholder="关键词" required>
+                                        <input type="text" name="value_{{ loop.index }}" value="{{ value }}" placeholder="Beancount账户" required>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <button type="button" class="btn add-mapping-btn" onclick="addMapping('asset-mappings')">添加映射</button>
+                                <div class="mapping-actions">
+                                    <button type="submit" class="btn btn-primary">保存映射配置</button>
+                                </div>
+                            </form>
+                            {% else %}
+                            <p class="empty-mapping-message">暂无自定义映射</p>
+                            <form action="{{ url_for('update_mappings', mapping_type='asset') }}" method="post">
+                                <div id="asset-mappings">
+                                    <div class="mapping-pair">
+                                        <input type="text" name="key_1" placeholder="关键词" required>
+                                        <input type="text" name="value_1" placeholder="Beancount账户" required>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn add-mapping-btn" onclick="addMapping('asset-mappings')">添加映射</button>
+                                <div class="mapping-actions">
+                                    <button type="submit" class="btn btn-primary">保存映射配置</button>
+                                </div>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- 负债账户 -->
+                    <div id="liability-tab" class="tab-content">
+                        <h3>负债账户映射</h3>
+                        <p>配置账单中的支付方式映射到Beancount负债账户</p>
+                        
+                        <!-- 显示默认映射 -->
+                        <div class="mapping-section">
+                            <h4>默认负债账户映射</h4>
+                            <div class="default-mappings-container">
+                                <div class="default-mapping-column">
+                                    <h5><span class="mapping-source alipay-source">支付宝</span> 默认映射</h5>
+                                    <table class="mapping-table">
+                                        <thead>
+                                            <tr>
+                                                <th>关键词</th>
+                                                <th>Beancount账户</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for key, value in mappings.liability_accounts.default.items() %}
+                                            <tr>
+                                                <td>{{ key }}</td>
+                                                <td>{{ value }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <div class="default-mapping-column">
+                                    <h5><span class="mapping-source wechat-source">微信</span> 默认映射</h5>
+                                    <table class="mapping-table">
+                                        <thead>
+                                            <tr>
+                                                <th>关键词</th>
+                                                <th>Beancount账户</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for key, value in mappings.liability_accounts.wechat_default.items() %}
+                                            <tr>
+                                                <td>{{ key }}</td>
+                                                <td>{{ value }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 自定义映射表单 -->
+                        <div class="mapping-section">
+                            <h4>自定义负债账户映射</h4>
+                            {% if mappings.liability_accounts.custom %}
+                            <form action="{{ url_for('update_mappings', mapping_type='liability') }}" method="post">
+                                <div id="liability-mappings">
+                                    {% for key, value in mappings.liability_accounts.custom.items() %}
+                                    <div class="mapping-pair">
+                                        <input type="text" name="key_{{ loop.index }}" value="{{ key }}" placeholder="关键词" required>
+                                        <input type="text" name="value_{{ loop.index }}" value="{{ value }}" placeholder="Beancount账户" required>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <button type="button" class="btn add-mapping-btn" onclick="addMapping('liability-mappings')">添加映射</button>
+                                <div class="mapping-actions">
+                                    <button type="submit" class="btn btn-primary">保存映射配置</button>
+                                </div>
+                            </form>
+                            {% else %}
+                            <p class="empty-mapping-message">暂无自定义映射</p>
+                            <form action="{{ url_for('update_mappings', mapping_type='liability') }}" method="post">
+                                <div id="liability-mappings">
+                                    <div class="mapping-pair">
+                                        <input type="text" name="key_1" placeholder="关键词" required>
+                                        <input type="text" name="value_1" placeholder="Beancount账户" required>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn add-mapping-btn" onclick="addMapping('liability-mappings')">添加映射</button>
+                                <div class="mapping-actions">
+                                    <button type="submit" class="btn btn-primary">保存映射配置</button>
+                                </div>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- 导入导出映射 -->
+                    <div class="import-export-section">
+                        <h3>导入/导出映射配置</h3>
+                        <div style="display: flex; gap: 10px;">
+                            <a href="{{ url_for('export_mappings') }}" class="btn">导出映射配置</a>
+                            
+                            <form action="{{ url_for('import_mappings') }}" method="post" enctype="multipart/form-data" style="display: inline-block;">
+                                <input type="file" name="mapping_file" accept=".json" style="display: none;" id="mapping-file">
+                                <button type="button" class="btn" onclick="document.getElementById('mapping-file').click()">选择文件</button>
+                                <button type="submit" class="btn btn-primary" id="upload-btn" style="display: none;">导入映射配置</button>
+                            </form>
+                        </div>
                     </div>
                 </div>
-                
-                <p>如需自定义账户映射关系，请点击右上角的"自定义映射配置"</p>
             </div>
         </main>
         
@@ -116,7 +513,7 @@
             // 隐藏所有标签内容
             var tabContents = document.getElementsByClassName("tab-content");
             for (var i = 0; i < tabContents.length; i++) {
-                tabContents[i].classList.remove("active");
+                tabContents[i].style.display = "none";
             }
             
             // 移除所有标签按钮的活动状态
@@ -126,9 +523,38 @@
             }
             
             // 显示当前标签并激活按钮
-            document.getElementById(tabId).classList.add("active");
+            document.getElementById(tabId).style.display = "block";
             evt.currentTarget.classList.add("active");
         }
+        
+        // 添加映射字段
+        function addMapping(containerId) {
+            var container = document.getElementById(containerId);
+            var pairCount = container.children.length;
+            var newPair = document.createElement('div');
+            newPair.className = 'mapping-pair';
+            
+            var keyInput = document.createElement('input');
+            keyInput.type = 'text';
+            keyInput.name = 'key_' + (pairCount + 1);
+            keyInput.placeholder = '关键词';
+            keyInput.required = true;
+            
+            var valueInput = document.createElement('input');
+            valueInput.type = 'text';
+            valueInput.name = 'value_' + (pairCount + 1);
+            valueInput.placeholder = 'Beancount账户';
+            valueInput.required = true;
+            
+            newPair.appendChild(keyInput);
+            newPair.appendChild(valueInput);
+            container.appendChild(newPair);
+        }
+        
+        // 导入文件时显示上传按钮
+        document.getElementById('mapping-file').addEventListener('change', function() {
+            document.getElementById('upload-btn').style.display = 'inline-block';
+        });
     </script>
 </body>
 </html>
