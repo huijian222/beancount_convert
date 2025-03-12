@@ -3,14 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>转换结果 - 支付宝账单转Beancount</title>
+    <title>转换结果 - 账单转Beancount</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .bill-type-indicator {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        .bill-type-alipay {
+            background-color: #e8f4ff;
+            color: #0077ff;
+            border: 1px solid #0077ff;
+        }
+        .bill-type-wechat {
+            background-color: #e8fff0;
+            color: #07c160;
+            border: 1px solid #07c160;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>转换结果</h1>
-            <p>支付宝账单转Beancount格式的结果</p>
+            <p>账单转Beancount格式的结果</p>
         </header>
         
         <main>
@@ -25,6 +44,15 @@
             
             <div class="card">
                 <h2>Beancount转换结果</h2>
+                
+                {% if bill_type %}
+                    {% if bill_type == 'alipay' %}
+                        <div class="bill-type-indicator bill-type-alipay">支付宝账单</div>
+                    {% elif bill_type == 'wechat' %}
+                        <div class="bill-type-indicator bill-type-wechat">微信账单</div>
+                    {% endif %}
+                {% endif %}
+                
                 <p>总计 {{ entries|length }} 条交易记录</p>
                 
                 <div class="results">
@@ -36,7 +64,7 @@
         </main>
         
         <footer>
-            <p>©2025 Alipay2Beancount - <a href="https://github.com/yourusername/alipay2beancount" target="_blank">GitHub</a></p>
+            <p>©2025 Bill2Beancount - <a href="https://github.com/yourusername/bill2beancount" target="_blank">GitHub</a></p>
         </footer>
     </div>
 </body>

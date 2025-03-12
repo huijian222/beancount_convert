@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>支付宝账单转Beancount</title>
+    <title>账单转Beancount</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>支付宝账单转Beancount</h1>
-            <p>上传支付宝CSV账单文件，转换为Beancount格式</p>
+            <h1>账单转Beancount</h1>
+            <p>上传支付宝或微信支付CSV账单文件，转换为Beancount格式</p>
         </header>
         
         <main>
@@ -32,7 +32,7 @@
                 <h2>上传账单</h2>
                 <form method="post" enctype="multipart/form-data">
                     <div class="form-group">
-                        <label for="file">选择支付宝账单CSV文件:</label>
+                        <label for="file">选择支付宝或微信支付账单CSV文件:</label>
                         <input type="file" id="file" name="file" accept=".csv" required>
                     </div>
                     
@@ -58,26 +58,77 @@
             
             <div class="card">
                 <h2>使用说明</h2>
-                <ol>
-                    <li>登录支付宝，进入"我的"-"账单"</li>
-                    <li>选择要导出的时间段，点击右上角的"下载账单"</li>
-                    <li>选择CSV格式下载</li>
-                    <li>上传下载的CSV文件到本页面</li>
-                    <li>点击"上传并转换"按钮</li>
-                </ol>
-                <p>注意：以下交易将被跳过不处理：</p>
-                <ul>
-                    <li>标记为"不计收支"的交易</li>
-                    <li>交易状态为"交易关闭"的交易</li>
-                </ul>
-                <p>注意：金额为0的交易将被保留并处理。</p>
+                
+                <div class="tab-container">
+                    <div class="tab-nav">
+                        <button class="tab-button active" onclick="openTab(event, 'alipay-tab')">支付宝账单</button>
+                        <button class="tab-button" onclick="openTab(event, 'wechat-tab')">微信账单</button>
+                    </div>
+                    
+                    <div id="alipay-tab" class="tab-content active">
+                        <h3>支付宝账单导出步骤</h3>
+                        <ol>
+                            <li>登录支付宝，进入"我的"-"账单"</li>
+                            <li>选择要导出的时间段，点击右上角的"下载账单"</li>
+                            <li>选择CSV格式下载</li>
+                            <li>上传下载的CSV文件到本页面</li>
+                            <li>点击"上传并转换"按钮</li>
+                        </ol>
+                        <p>注意：以下交易将被跳过不处理：</p>
+                        <ul>
+                            <li>标记为"不计收支"的交易</li>
+                            <li>交易状态为"交易关闭"的交易</li>
+                        </ul>
+                        <p>注意：金额为0的交易将被保留并处理。</p>
+                    </div>
+                    
+                    <div id="wechat-tab" class="tab-content">
+                        <h3>微信支付账单导出步骤</h3>
+                        <ol>
+                            <li>打开微信，进入"我"-"支付"</li>
+                            <li>点击右上角"..."，选择"钱包"-"账单"</li>
+                            <li>点击右上角"..."，选择"导出账单"</li>
+                            <li>选择要导出的时间段，点击"导出账单"</li>
+                            <li>选择CSV格式，输入支付密码后下载</li>
+                            <li>上传下载的CSV文件到本页面</li>
+                            <li>点击"上传并转换"按钮</li>
+                        </ol>
+                        <p>注意：以下交易将被跳过不处理：</p>
+                        <ul>
+                            <li>收/支类型为"/"（不计收支）的交易</li>
+                            <li>交易状态为"已全额退款"、"对方已退还"、"已退款"的交易</li>
+                        </ul>
+                    </div>
+                </div>
+                
                 <p>如需自定义账户映射关系，请点击右上角的"自定义映射配置"</p>
             </div>
         </main>
         
         <footer>
-            <p>©2025 Alipay2Beancount - <a href="https://github.com/yourusername/alipay2beancount" target="_blank">GitHub</a></p>
+            <p>©2025 Bill2Beancount - <a href="https://github.com/yourusername/bill2beancount" target="_blank">GitHub</a></p>
         </footer>
     </div>
+    
+    <script>
+        // 选项卡切换功能
+        function openTab(evt, tabId) {
+            // 隐藏所有标签内容
+            var tabContents = document.getElementsByClassName("tab-content");
+            for (var i = 0; i < tabContents.length; i++) {
+                tabContents[i].classList.remove("active");
+            }
+            
+            // 移除所有标签按钮的活动状态
+            var tabButtons = document.getElementsByClassName("tab-button");
+            for (var i = 0; i < tabButtons.length; i++) {
+                tabButtons[i].classList.remove("active");
+            }
+            
+            // 显示当前标签并激活按钮
+            document.getElementById(tabId).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+    </script>
 </body>
 </html>

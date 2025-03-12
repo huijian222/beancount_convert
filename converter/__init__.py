@@ -2,3 +2,5 @@
 from .mapping import BillMapping
 from .alipay_mapping import AlipayMapping
 from .alipay import AlipayConverter
+from .wechat_mapping import WeChatMapping
+from .wechat import WeChatConverter
