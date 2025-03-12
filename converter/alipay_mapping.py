@@ -19,6 +19,7 @@ class AlipayMapping(BillMapping):
             '交易对方': 'counterparty',
             '对方账号': 'counterparty_account',
             '商品说明': 'description',
+            '商品名称': 'description',  # 增加"商品名称"也映射到description
             '收/支': 'type',
             '金额': 'amount',
             '收/付款方式': 'payment_method',
