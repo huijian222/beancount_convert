@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>转换结果 - 支付宝账单转Beancount</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>转换结果</h1>
+            <p>支付宝账单转Beancount格式的结果</p>
+        </header>
+        
+        <main>
+            <div class="actions">
+                <a href="{{ url_for('index') }}" class="btn">返回上传页面</a>
+                <form action="{{ url_for('index') }}" method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="file" value="{{ file }}">
+                    <input type="hidden" name="action" value="download">
+                    <button type="submit" class="btn btn-primary">下载结果文件</button>
+                </form>
+            </div>
+            
+            <div class="card">
+                <h2>Beancount转换结果</h2>
+                <p>总计 {{ entries|length }} 条交易记录</p>
+                
+                <div class="results">
+                    <pre><code>{% for entry in entries %}{{ entry }}
+
+{% endfor %}</code></pre>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>©2025 Alipay2Beancount - <a href="https://github.com/yourusername/alipay2beancount" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+</body>
+</html>
