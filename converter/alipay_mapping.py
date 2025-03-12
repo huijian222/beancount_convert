@@ -1,6 +1,9 @@
 import pandas as pd
 from .mapping import BillMapping
 import re
+import json
+import os
+
 class AlipayMapping(BillMapping):
     """支付宝账单专用映射类"""
     
@@ -64,11 +67,107 @@ class AlipayMapping(BillMapping):
         # 资产账户映射
         self.asset_accounts = {
             "余额宝": "Assets:Alipay:Yuebao",
-            "花呗": "Liabilities:Alipay:Huabei",
             "余额": "Assets:Alipay:Balance",
-            "储蓄卡": "Assets:Bank",
+            "储蓄卡": "Assets:Bank"
+        }
+        
+        # 负债账户映射
+        self.liability_accounts = {
+            "花呗": "Liabilities:Alipay:Huabei",
             "信用卡": "Liabilities:CreditCard"
         }
+        
+        # 自定义映射（初始为空）
+        self.custom_expense_categories = {}
+        self.custom_income_categories = {}
+        self.custom_asset_accounts = {}
+        self.custom_liability_accounts = {}
+        
+        # 尝试加载自定义映射
+        self.load_custom_mappings()
+
+    def load_custom_mappings(self, filepath=None):
+        """从JSON文件加载自定义映射"""
+        if filepath is None:
+            # 默认保存在与应用相同目录下
+            filepath = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'custom_mappings.json')
+        
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    mappings = json.load(f)
+                    
+                    if 'expense_categories' in mappings:
+                        self.custom_expense_categories = mappings['expense_categories']
+                    if 'income_categories' in mappings:
+                        self.custom_income_categories = mappings['income_categories']
+                    if 'asset_accounts' in mappings:
+                        self.custom_asset_accounts = mappings['asset_accounts']
+                    if 'liability_accounts' in mappings:
+                        self.custom_liability_accounts = mappings['liability_accounts']
+                        
+                print(f"已加载自定义映射: {filepath}")
+                return True
+            except Exception as e:
+                print(f"加载自定义映射失败: {str(e)}")
+                return False
+        return False
+        
+    def save_custom_mappings(self, filepath=None):
+        """保存自定义映射到JSON文件"""
+        if filepath is None:
+            # 默认保存在与应用相同目录下
+            filepath = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'custom_mappings.json')
+        
+        try:
+            mappings = {
+                'expense_categories': self.custom_expense_categories,
+                'income_categories': self.custom_income_categories,
+                'asset_accounts': self.custom_asset_accounts,
+                'liability_accounts': self.custom_liability_accounts
+            }
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(mappings, f, ensure_ascii=False, indent=2)
+                
+            print(f"已保存自定义映射: {filepath}")
+            return True
+        except Exception as e:
+            print(f"保存自定义映射失败: {str(e)}")
+            return False
+    
+    def get_all_mappings(self):
+        """获取所有映射（默认和自定义）"""
+        return {
+            'expense_categories': {
+                'default': self.expense_categories,
+                'custom': self.custom_expense_categories
+            },
+            'income_categories': {
+                'default': self.income_categories,
+                'custom': self.custom_income_categories
+            },
+            'asset_accounts': {
+                'default': self.asset_accounts,
+                'custom': self.custom_asset_accounts
+            },
+            'liability_accounts': {
+                'default': self.liability_accounts,
+                'custom': self.custom_liability_accounts
+            }
+        }
+    
+    def update_custom_mappings(self, mapping_type, mappings):
+        """更新自定义映射"""
+        if mapping_type == 'expense':
+            self.custom_expense_categories = mappings
+        elif mapping_type == 'income':
+            self.custom_income_categories = mappings
+        elif mapping_type == 'asset':
+            self.custom_asset_accounts = mappings
+        elif mapping_type == 'liability':
+            self.custom_liability_accounts = mappings
+        return self.save_custom_mappings()
 
     def identify_columns(self, df):
         """识别支付宝账单的列"""

@@ -25,6 +25,10 @@
             {% endwith %}
             
             <div class="card">
+                <div style="text-align: right; margin-bottom: 15px;">
+                    <a href="{{ url_for('view_mappings') }}" class="btn">自定义映射配置</a>
+                </div>
+                
                 <h2>上传账单</h2>
                 <form method="post" enctype="multipart/form-data">
                     <div class="form-group">
@@ -61,6 +65,13 @@
                     <li>上传下载的CSV文件到本页面</li>
                     <li>点击"上传并转换"按钮</li>
                 </ol>
+                <p>注意：以下交易将被跳过不处理：</p>
+                <ul>
+                    <li>标记为"不计收支"的交易</li>
+                    <li>交易状态为"交易关闭"的交易</li>
+                </ul>
+                <p>注意：金额为0的交易将被保留并处理。</p>
+                <p>如需自定义账户映射关系，请点击右上角的"自定义映射配置"</p>
             </div>
         </main>
         

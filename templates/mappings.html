@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自定义映射 - 支付宝账单转Beancount</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .mapping-section {
+            margin-bottom: 30px;
+        }
+        .mapping-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        .mapping-table th, .mapping-table td {
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+        .mapping-table th {
+            background-color: #f8f9fa;
+            text-align: left;
+        }
+        .mapping-form {
+            margin-top: 20px;
+        }
+        .mapping-form input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+        }
+        .mapping-entry {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .mapping-entry input {
+            flex: 1;
+            margin-right: 10px;
+        }
+        .mapping-entry button {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .add-mapping {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .tab-nav {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .tab-nav button {
+            background: none;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+        }
+        .tab-nav button.active {
+            border-bottom: 2px solid #0056b3;
+            color: #0056b3;
+        }
+        .import-export {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>自定义映射配置</h1>
+            <p>配置支付宝账单转Beancount的映射关系</p>
+        </header>
+        
+        <main>
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="alerts">
+                        {% for message in messages %}
+                            <div class="alert">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                
+                <!-- 负债账户映射 -->
+                <div id="liability-tab" class="tab-content">
+                    <h3>负债账户映射 (Liabilities)</h3>
+                    
+                    <div class="mapping-section">
+                        <h4>默认映射</h4>
+                        <table class="mapping-table">
+                            <thead>
+                                <tr>
+                                    <th>关键词</th>
+                                    <th>Beancount账户</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key, value in mappings.liability_accounts.default.items() %}
+                                <tr>
+                                    <td>{{ key }}</td>
+                                    <td>{{ value }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mapping-section">
+                        <h4>自定义映射</h4>
+                        <form method="post" action="{{ url_for('update_mappings', mapping_type='liability') }}" class="mapping-form">
+                            <div id="liability-mappings">
+                                {% for key, value in mappings.liability_accounts.custom.items() %}
+                                <div class="mapping-entry">
+                                    <input type="text" name="key_{{ loop.index }}" placeholder="关键词" value="{{ key }}" required>
+                                    <input type="text" name="value_{{ loop.index }}" placeholder="Beancount账户" value="{{ value }}" required>
+                                    <button type="button" onclick="removeMapping(this)">×</button>
+                                </div>
+                                {% else %}
+                                <div class="mapping-entry">
+                                    <input type="text" name="key_1" placeholder="关键词" required>
+                                    <input type="text" name="value_1" placeholder="Beancount账户 (Liabilities:...)" required>
+                                    <button type="button" onclick="removeMapping(this)">×</button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <button type="button" class="add-mapping" onclick="addMapping('liability-mappings')">添加映射</button>
+                            <button type="submit" class="btn btn-primary">保存负债映射</button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+            {% endwith %}
+            
+            <div class="card">
+                <div class="actions">
+                    <a href="{{ url_for('index') }}" class="btn">返回上传页面</a>
+                </div>
+                
+                <div class="tab-nav">
+                    <button class="tab-button active" onclick="openTab(event, 'expense-tab')">支出分类映射</button>
+                    <button class="tab-button" onclick="openTab(event, 'income-tab')">收入分类映射</button>
+                    <button class="tab-button" onclick="openTab(event, 'asset-tab')">资产账户映射</button>
+                    <button class="tab-button" onclick="openTab(event, 'liability-tab')">负债账户映射</button>
+                </div>
+                
+                <!-- 支出分类映射 -->
+                <div id="expense-tab" class="tab-content active">
+                    <h3>支出分类映射</h3>
+                    
+                    <div class="mapping-section">
+                        <h4>默认映射</h4>
+                        <table class="mapping-table">
+                            <thead>
+                                <tr>
+                                    <th>关键词</th>
+                                    <th>Beancount账户</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key, value in mappings.expense_categories.default.items() %}
+                                <tr>
+                                    <td>{{ key }}</td>
+                                    <td>{{ value }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mapping-section">
+                        <h4>自定义映射</h4>
+                        <form method="post" action="{{ url_for('update_mappings', mapping_type='expense') }}" class="mapping-form">
+                            <div id="expense-mappings">
+                                {% for key, value in mappings.expense_categories.custom.items() %}
+                                <div class="mapping-entry">
+                                    <input type="text" name="key_{{ loop.index }}" placeholder="关键词" value="{{ key }}" required>
+                                    <input type="text" name="value_{{ loop.index }}" placeholder="Beancount账户" value="{{ value }}" required>
+                                    <button type="button" onclick="removeMapping(this)">×</button>
+                                </div>
+                                {% else %}
+                                <div class="mapping-entry">
+                                    <input type="text" name="key_1" placeholder="关键词" required>
+                                    <input type="text" name="value_1" placeholder="Beancount账户" required>
+                                    <button type="button" onclick="removeMapping(this)">×</button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <button type="button" class="add-mapping" onclick="addMapping('expense-mappings')">添加映射</button>
+                            <button type="submit" class="btn btn-primary">保存支出映射</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- 收入分类映射 -->
+                <div id="income-tab" class="tab-content">
+                    <h3>收入分类映射</h3>
+                    
+                    <div class="mapping-section">
+                        <h4>默认映射</h4>
+                        <table class="mapping-table">
+                            <thead>
+                                <tr>
+                                    <th>关键词</th>
+                                    <th>Beancount账户</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key, value in mappings.income_categories.default.items() %}
+                                <tr>
+                                    <td>{{ key }}</td>
+                                    <td>{{ value }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mapping-section">
+                        <h4>自定义映射</h4>
+                        <form method="post" action="{{ url_for('update_mappings', mapping_type='income') }}" class="mapping-form">
+                            <div id="income-mappings">
+                                {% for key, value in mappings.income_categories.custom.items() %}
+                                <div class="mapping-entry">
+                                    <input type="text" name="key_{{ loop.index }}" placeholder="关键词" value="{{ key }}" required>
+                                    <input type="text" name="value_{{ loop.index }}" placeholder="Beancount账户" value="{{ value }}" required>
+                                    <button type="button" onclick="removeMapping(this)">×</button>
+                                </div>
+                                {% else %}
+                                <div class="mapping-entry">
+                                    <input type="text" name="key_1" placeholder="关键词" required>
+                                    <input type="text" name="value_1" placeholder="Beancount账户" required>
+                                    <button type="button" onclick="removeMapping(this)">×</button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <button type="button" class="add-mapping" onclick="addMapping('income-mappings')">添加映射</button>
+                            <button type="submit" class="btn btn-primary">保存收入映射</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- 资产账户映射 -->
+                <div id="asset-tab" class="tab-content">
+                    <h3>资产账户映射 (Assets)</h3>
+                    
+                    <div class="mapping-section">
+                        <h4>默认映射</h4>
+                        <table class="mapping-table">
+                            <thead>
+                                <tr>
+                                    <th>关键词</th>
+                                    <th>Beancount账户</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key, value in mappings.asset_accounts.default.items() %}
+                                <tr>
+                                    <td>{{ key }}</td>
+                                    <td>{{ value }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mapping-section">
+                        <h4>自定义映射</h4>
+                        <form method="post" action="{{ url_for('update_mappings', mapping_type='asset') }}" class="mapping-form">
+                            <div id="asset-mappings">
+                                {% for key, value in mappings.asset_accounts.custom.items() %}
+                                <div class="mapping-entry">
+                                    <input type="text" name="key_{{ loop.index }}" placeholder="关键词" value="{{ key }}" required>
+                                    <input type="text" name="value_{{ loop.index }}" placeholder="Beancount账户" value="{{ value }}" required>
+                                    <button type="button" onclick="removeMapping(this)">×</button>
+                                </div>
+                                {% else %}
+                                <div class="mapping-entry">
+                                    <input type="text" name="key_1" placeholder="关键词" required>
+                                    <input type="text" name="value_1" placeholder="Beancount账户" required>
+                                    <button type="button" onclick="removeMapping(this)">×</button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <button type="button" class="add-mapping" onclick="addMapping('asset-mappings')">添加映射</button>
+                            <button type="submit" class="btn btn-primary">保存资产映射</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- 导入导出功能 -->
+                <div class="import-export">
+                    <h3>导入/导出映射</h3>
+                    
+                    <div class="mapping-section">
+                        <h4>导出映射</h4>
+                        <p>将当前的自定义映射导出为JSON文件，方便备份和迁移。</p>
+                        <a href="{{ url_for('export_mappings') }}" class="btn">导出映射配置</a>
+                    </div>
+                    
+                    <div class="mapping-section">
+                        <h4>导入映射</h4>
+                        <p>从JSON文件导入映射配置，替换当前的自定义映射。</p>
+                        <form method="post" action="{{ url_for('import_mappings') }}" enctype="multipart/form-data">
+                            <div class="form-group">
+                                <input type="file" name="mapping_file" accept=".json" required>
+                            </div>
+                            <button type="submit" class="btn">导入映射配置</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>©2025 Alipay2Beancount - <a href="https://github.com/yourusername/alipay2beancount" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script>
+        // 选项卡切换功能
+        function openTab(evt, tabId) {
+            // 隐藏所有标签内容
+            var tabContents = document.getElementsByClassName("tab-content");
+            for (var i = 0; i < tabContents.length; i++) {
+                tabContents[i].classList.remove("active");
+            }
+            
+            // 移除所有标签按钮的活动状态
+            var tabButtons = document.getElementsByClassName("tab-button");
+            for (var i = 0; i < tabButtons.length; i++) {
+                tabButtons[i].classList.remove("active");
+            }
+            
+            // 显示当前标签并激活按钮
+            document.getElementById(tabId).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+        
+        // 添加映射
+        function addMapping(containerId) {
+            var container = document.getElementById(containerId);
+            var mappingEntries = container.getElementsByClassName('mapping-entry');
+            var newIndex = mappingEntries.length + 1;
+            
+            var newEntry = document.createElement('div');
+            newEntry.className = 'mapping-entry';
+            newEntry.innerHTML = `
+                <input type="text" name="key_${newIndex}" placeholder="关键词" required>
+                <input type="text" name="value_${newIndex}" placeholder="Beancount账户" required>
+                <button type="button" onclick="removeMapping(this)">×</button>
+            `;
+            
+            container.appendChild(newEntry);
+        }
+        
+        // 移除映射
+        function removeMapping(button) {
+            var entry = button.parentNode;
+            var container = entry.parentNode;
+            
+            // 如果只有一个映射条目，不允许删除
+            if (container.getElementsByClassName('mapping-entry').length > 1) {
+                container.removeChild(entry);
+                
+                // 重新编号映射条目
+                var entries = container.getElementsByClassName('mapping-entry');
+                for (var i = 0; i < entries.length; i++) {
+                    var inputs = entries[i].getElementsByTagName('input');
+                    inputs[0].name = `key_${i+1}`;
+                    inputs[1].name = `value_${i+1}`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

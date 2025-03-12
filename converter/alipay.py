@@ -31,20 +31,23 @@ class AlipayConverter:
             if transaction['uuid']:
                 entry += f"    uuid: \"{transaction['uuid']}\"\n"
             
+            # 获取交易金额，可能为0
+            amount = transaction['amount']
+            
             # 添加账户和金额
             if transaction['transaction_type'] == 'expense':
-                entry += f"    {transaction['expense_account']}  {transaction['amount']} CNY\n"
-                entry += f"    {transaction['asset_account']}  -{transaction['amount']} CNY\n"
+                entry += f"    {transaction['expense_account']}  {amount} CNY\n"
+                entry += f"    {transaction['asset_account']}  -{amount} CNY\n"
             elif transaction['transaction_type'] == 'income':
-                entry += f"    {transaction['asset_account']}  {transaction['amount']} CNY\n"
-                entry += f"    {transaction['income_account']}  -{transaction['amount']} CNY\n"
+                entry += f"    {transaction['asset_account']}  {amount} CNY\n"
+                entry += f"    {transaction['income_account']}  -{amount} CNY\n"
             elif transaction['transaction_type'] == 'transfer':
-                entry += f"    {transaction['to_account']}  {transaction['amount']} CNY\n"
-                entry += f"    {transaction['from_account']}  -{transaction['amount']} CNY\n"
+                entry += f"    {transaction['to_account']}  {amount} CNY\n"
+                entry += f"    {transaction['from_account']}  -{amount} CNY\n"
             else:
                 # 未知类型，使用默认处理
-                entry += f"    Expenses:Uncategorized  {transaction['amount']} CNY\n"
-                entry += f"    Assets:Alipay:Balance  -{transaction['amount']} CNY\n"
+                entry += f"    Expenses:Uncategorized  {amount} CNY\n"
+                entry += f"    Assets:Alipay:Balance  -{amount} CNY\n"
             
             return entry
         except Exception as e:
@@ -61,6 +64,23 @@ class AlipayConverter:
             if len(df) == 0:
                 print("警告: 没有找到任何交易数据")
                 return "# 没有发现有效的交易数据"
+            
+            # 跳过标记为"不计收支"的交易
+            if '收/支' in df.columns:
+                df = df[df['收/支'] != '不计收支']
+            
+            # 跳过交易状态为"交易关闭"的交易
+            if '交易状态' in df.columns:
+                df = df[df['交易状态'] != '交易关闭']
+            
+            # 跳过transaction_type为'transfer'的交易
+            if 'transaction_type' in df.columns:
+                df = df[df['transaction_type'] != 'transfer']
+                
+            # 如果过滤后没有交易数据，返回空字符串
+            if len(df) == 0:
+                print("警告: 过滤后没有找到任何交易数据")
+                return "# 过滤后没有发现有效的交易数据"
                 
             beancount_entries = []
             
@@ -78,9 +98,8 @@ class AlipayConverter:
                         except:
                             pass
                             
-                    # 跳过金额为0的交易
-                    if amount <= 0:
-                        continue
+                    # 注意：不再跳过金额为0的交易
+                    # 即使金额为0也继续处理
                     
                     # 解析日期和时间
                     date_str = None
@@ -137,6 +156,9 @@ class AlipayConverter:
                         elif row['收/支'] == '不计收支':
                             transaction_type = 'transfer'
                     
+                    # 获取交易映射（使用自定义映射如果可用）
+                    asset_account = self.get_asset_account(row)
+                    
                     # 收集交易信息
                     transaction = {
                         'date': date,
@@ -148,96 +170,23 @@ class AlipayConverter:
                         'payment_method': payment_method,
                         'status': f"Alipay - {status}",
                         'uuid': transaction_id,
+                        'asset_account': asset_account,
                     }
-                    
-                    # 设置账户信息
-                    asset_account = "Assets:Alipay:Balance"  # 默认账户
-                    
-                    # 根据支付方式判断资产账户
-                    if '余额宝' in payment_method:
-                        asset_account = "Assets:Alipay:Yuebao"
-                    elif '花呗' in payment_method:
-                        asset_account = "Liabilities:Alipay:Huabei"
-                    elif '信用卡' in payment_method:
-                        # 尝试提取银行和卡号
-                        bank_match = re.search(r'([\u4e00-\u9fa5]+)银行信用卡', payment_method)
-                        card_match = re.search(r'\((\d+)\)', payment_method)
-                        
-                        if bank_match and card_match:
-                            bank = bank_match.group(1)
-                            card = card_match.group(1)
-                            asset_account = f"Liabilities:CreditCard:{bank}:{card}"
-                        elif card_match:
-                            card = card_match.group(1)
-                            asset_account = f"Liabilities:CreditCard:{card}"
-                    elif '储蓄卡' in payment_method:
-                        # 提取银行和卡号
-                        bank_match = re.search(r'([\u4e00-\u9fa5]+)银行储蓄卡', payment_method)
-                        card_match = re.search(r'\((\d+)\)', payment_method)
-                        
-                        if bank_match and card_match:
-                            bank = bank_match.group(1)
-                            card = card_match.group(1)
-                            asset_account = f"Assets:Bank:{bank}:{card}"
-                        elif card_match:
-                            card = card_match.group(1)
-                            asset_account = f"Assets:Bank:{card}"
-                    elif any(bank in payment_method for bank in ['工商', '农业', '中国', '建设', '交通', '邮政', '招商']):
-                        # 尝试提取银行名称和卡号
-                        for bank in ['工商', '农业', '中国', '建设', '交通', '邮政', '招商']:
-                            if bank in payment_method:
-                                card_match = re.search(r'\((\d+)\)', payment_method)
-                                if card_match:
-                                    card = card_match.group(1)
-                                    asset_account = f"Assets:Bank:{bank}:{card}"
-                                    break
                     
                     # 根据交易类型设置账户
                     if transaction_type == 'expense':
-                        # 根据交易分类设置支出账户
-                        expense_account = "Expenses:Uncategorized"
-                        
-                        if '交易分类' in row and not pd.isna(row['交易分类']):
-                            category = row['交易分类']
-                            
-                            # 基于交易分类设置支出账户
-                            category_mapping = {
-                                '餐饮': 'Expenses:Food',
-                                '美食': 'Expenses:Food',
-                                '超市': 'Expenses:Shopping:Groceries',
-                                '日用': 'Expenses:Shopping:Daily',
-                                '交通': 'Expenses:Transport',
-                                '服饰': 'Expenses:Clothing',
-                                '娱乐': 'Expenses:Entertainment'
-                            }
-                            
-                            for key, account in category_mapping.items():
-                                if key in category:
-                                    expense_account = account
-                                    break
-                        
+                        # 获取支出账户映射
+                        expense_account = self.get_expense_account(row)
                         transaction['expense_account'] = expense_account
-                        transaction['asset_account'] = asset_account
+                        
+                        # 记录映射应用情况，帮助调试
+                        if hasattr(self.mapping, 'custom_expense_categories') and self.mapping.custom_expense_categories:
+                            print(f"交易明细: 付款方 '{payee}', 描述 '{narration}', 分配账户 '{expense_account}'");
                     
                     elif transaction_type == 'income':
-                        # 收入账户
-                        income_account = "Income:Uncategorized"
-                        
-                        if '交易分类' in row and not pd.isna(row['交易分类']):
-                            category = row['交易分类']
-                            
-                            # 基于交易分类设置收入账户
-                            if '退款' in category:
-                                income_account = "Income:Refund"
-                            elif '工资' in category or '薪资' in category:
-                                income_account = "Income:Salary"
-                            elif '奖金' in category:
-                                income_account = "Income:Bonus"
-                            elif '红包' in category:
-                                income_account = "Income:Gift"
-                        
+                        # 获取收入账户映射
+                        income_account = self.get_income_account(row)
                         transaction['income_account'] = income_account
-                        transaction['asset_account'] = asset_account
                     
                     elif transaction_type == 'transfer':
                         # 处理转账交易
@@ -282,3 +231,183 @@ class AlipayConverter:
             return "\n\n".join(beancount_entries)
         except Exception as e:
             raise ValueError(f"转换支付宝账单时出错: {str(e)}")
+            
+    def get_expense_account(self, row):
+        """获取支出账户（支持自定义映射）"""
+        expense_account = "Expenses:Uncategorized"
+        
+        # 检查自定义映射（如果有）
+        if hasattr(self.mapping, 'custom_expense_categories') and self.mapping.custom_expense_categories:
+            # 获取需要检查的所有字段值
+            check_fields = []
+            
+            # 交易分类
+            if '交易分类' in row and not pd.isna(row['交易分类']):
+                check_fields.append(str(row['交易分类']))
+                
+            # 交易对方
+            if '交易对方' in row and not pd.isna(row['交易对方']):
+                check_fields.append(str(row['交易对方']))
+                
+            # 商品说明
+            if '商品说明' in row and not pd.isna(row['商品说明']):
+                check_fields.append(str(row['商品说明']))
+                
+            # 交易订单号（备注）
+            if '备注' in row and not pd.isna(row['备注']):
+                check_fields.append(str(row['备注']))
+                
+            # 检查每个字段是否匹配自定义映射中的关键词
+            for field_value in check_fields:
+                for key, account in self.mapping.custom_expense_categories.items():
+                    if key in field_value:
+                        return account  # 找到匹配项，立即返回对应账户
+        
+        # 如果没有匹配的自定义映射，回退到默认映射
+        if '交易分类' in row and not pd.isna(row['交易分类']):
+            category = str(row['交易分类'])
+            
+            # 基于默认交易分类设置支出账户
+            category_mapping = {
+                '餐饮': 'Expenses:Food',
+                '美食': 'Expenses:Food',
+                '超市': 'Expenses:Shopping:Groceries',
+                '日用': 'Expenses:Shopping:Daily',
+                '交通': 'Expenses:Transport',
+                '服饰': 'Expenses:Clothing',
+                '娱乐': 'Expenses:Entertainment'
+            }
+            
+            for key, account in category_mapping.items():
+                if key in category:
+                    expense_account = account
+                    break
+        
+        return expense_account
+
+    def get_income_account(self, row):
+        """获取收入账户（支持自定义映射）"""
+        income_account = "Income:Uncategorized"
+        
+        # 检查自定义映射（如果有）
+        if hasattr(self.mapping, 'custom_income_categories') and self.mapping.custom_income_categories:
+            # 获取需要检查的所有字段值
+            check_fields = []
+            
+            # 交易分类
+            if '交易分类' in row and not pd.isna(row['交易分类']):
+                check_fields.append(str(row['交易分类']))
+                
+            # 交易对方
+            if '交易对方' in row and not pd.isna(row['交易对方']):
+                check_fields.append(str(row['交易对方']))
+                
+            # 商品说明
+            if '商品说明' in row and not pd.isna(row['商品说明']):
+                check_fields.append(str(row['商品说明']))
+                
+            # 交易订单号（备注）
+            if '备注' in row and not pd.isna(row['备注']):
+                check_fields.append(str(row['备注']))
+                
+            # 检查每个字段是否匹配自定义映射中的关键词
+            for field_value in check_fields:
+                for key, account in self.mapping.custom_income_categories.items():
+                    if key in field_value:
+                        return account  # 找到匹配项，立即返回对应账户
+        
+        # 如果没有匹配的自定义映射，回退到默认映射
+        if '交易分类' in row and not pd.isna(row['交易分类']):
+            category = str(row['交易分类'])
+            
+            # 默认映射
+            if '退款' in category:
+                income_account = "Income:Refund"
+            elif '工资' in category or '薪资' in category:
+                income_account = "Income:Salary"
+            elif '奖金' in category:
+                income_account = "Income:Bonus"
+            elif '红包' in category:
+                income_account = "Income:Gift"
+        
+        return income_account
+
+    def get_asset_account(self, row):
+        """获取资产账户（支持自定义映射）"""
+        asset_account = "Assets:Alipay:Balance"  # 默认账户
+        
+        # 获取支付方式
+        payment_method = ""
+        if '收/付款方式' in row and not pd.isna(row['收/付款方式']):
+            payment_method = str(row['收/付款方式']).strip()
+        
+        # 先检查是否为负债账户
+        is_liability = False
+        if hasattr(self.mapping, 'custom_liability_accounts') and self.mapping.custom_liability_accounts:
+            for key, account in self.mapping.custom_liability_accounts.items():
+                if key in payment_method:
+                    asset_account = account
+                    is_liability = True
+                    return asset_account
+                    
+        # 如果不是自定义负债，检查默认负债
+        for key, account in self.mapping.liability_accounts.items():
+            if key in payment_method:
+                asset_account = account
+                is_liability = True
+                break
+        
+        # 如果不是负债，检查自定义资产
+        if not is_liability and hasattr(self.mapping, 'custom_asset_accounts') and self.mapping.custom_asset_accounts:
+            for key, account in self.mapping.custom_asset_accounts.items():
+                if key in payment_method:
+                    asset_account = account
+                    return asset_account
+        
+        # 如果不是自定义负债或资产，检查默认资产
+        if not is_liability:
+            for key, account in self.mapping.asset_accounts.items():
+                if key in payment_method:
+                    asset_account = account
+                    break
+                    
+        # 其他特殊情况处理
+        if not is_liability:
+            # 处理储蓄卡
+            if '储蓄卡' in payment_method:
+                # 提取银行和卡号
+                bank_match = re.search(r'([\u4e00-\u9fa5]+)银行储蓄卡', payment_method)
+                card_match = re.search(r'\((\d+)\)', payment_method)
+                
+                if bank_match and card_match:
+                    bank = bank_match.group(1)
+                    card = card_match.group(1)
+                    asset_account = f"Assets:Bank:{bank}:{card}"
+                elif card_match:
+                    card = card_match.group(1)
+                    asset_account = f"Assets:Bank:{card}"
+            # 处理银行账户
+            elif any(bank in payment_method for bank in ['工商', '农业', '中国', '建设', '交通', '邮政', '招商']):
+                # 尝试提取银行名称和卡号
+                for bank in ['工商', '农业', '中国', '建设', '交通', '邮政', '招商']:
+                    if bank in payment_method:
+                        card_match = re.search(r'\((\d+)\)', payment_method)
+                        if card_match:
+                            card = card_match.group(1)
+                            asset_account = f"Assets:Bank:{bank}:{card}"
+                            break
+        # 处理信用卡
+        elif '信用卡' in payment_method:
+            # 尝试提取银行和卡号
+            bank_match = re.search(r'([\u4e00-\u9fa5]+)银行信用卡', payment_method)
+            card_match = re.search(r'\((\d+)\)', payment_method)
+            
+            if bank_match and card_match:
+                bank = bank_match.group(1)
+                card = card_match.group(1)
+                asset_account = f"Liabilities:CreditCard:{bank}:{card}"
+            elif card_match:
+                card = card_match.group(1)
+                asset_account = f"Liabilities:CreditCard:{card}"
+        
+        return asset_account
